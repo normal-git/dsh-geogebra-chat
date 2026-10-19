@@ -754,7 +754,7 @@ const boardNodeDefinition = {
   kind: 'geogebra-board',
   target: 'chat',
   match: (event: { type: string, seq: number, data?: Record<string, unknown> }) => {
-    if (event.type !== 'plugin:dsh-geogebra-chat/board' && event.type !== 'plugin:dsh-geogebra/board') return null
+    if (event.type !== 'plugin:dsh-geogebra-chat/board') return null
     const boardId = event.data?.boardId
     return { id: typeof boardId === 'string' ? boardId : String(event.seq), role: 'start' }
   },
