@@ -1,0 +1,7 @@
+# DSH GeoGebra Chat
+#
+# Bundle patch: inserts the host half. The client bundle is resolved from this
+# package through package.json exports ("./client").
+- insert:
+    - id: dsh-geogebra-chat
+      name: '@normal-git/dsh-geogebra-chat'

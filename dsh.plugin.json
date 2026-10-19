@@ -1,0 +1,24 @@
+{
+  "id": "dsh-external/dsh-geogebra-chat",
+  "version": "0.1.1",
+  "main": "./lib/index.js",
+  "description": "Immutable, interactive GeoGebra snapshot boards inside DeepSeek Harness conversations.",
+  "engines": {
+    "dsh": ">=0.2.1-rc.2"
+  },
+  "contributes": {
+    "tools": [
+      "geogebra_create",
+      "geogebra_amend",
+      "geogebra_commit",
+      "geogebra_check",
+      "geogebra_inspect",
+      "geogebra_rename",
+      "geogebra_list",
+      "geogebra_export",
+      "geogebra_modes",
+      "geogebra_delete"
+    ],
+    "skills": []
+  }
+}
