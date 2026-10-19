@@ -76,7 +76,7 @@ Agent 会先调 `geogebra_check`，再基于旧板新建一张板。
 
 | 工具 | 作用 |
 |---|---|
-| `geogebra_create` | 新建板（必须起名，可 `from` 旧板） |
+| `geogebra_create` | 新建板（必须起名和 `appName`，可 `from` 旧板） |
 | `geogebra_amend` | 本轮内补发或修正命令，已有对象保留 |
 | `geogebra_commit` | 提前冻结草稿 |
 | `geogebra_check` | 用户改了什么，以及当前清单 |
@@ -89,7 +89,7 @@ Agent 会先调 `geogebra_check`，再基于旧板新建一张板。
 
 工具返回的是 GeoGebra 自己的对象清单（标签、类型、定义、文本），不返回 XML 或图片，避免占满上下文。
 
-模式：`suite`（默认）、`classic`、`graphing`、`geometry`、`3d`、`scientific` 等。含 `(x,y,z)` 的构造会自动切到 `3d`，3D 卡片显示在 3D 视图里；不确定时 Agent 会先调 `geogebra_modes`。
+模式：`suite`、`classic`、`graphing`、`geometry`、`3d`、`scientific` 等。每次 `create` 都必须显式指定 `appName`，3D 用 `3d`，纯函数用 `graphing`，几何用 `geometry` 或 `suite`；不确定时 Agent 会先调 `geogebra_modes`。3D 卡片显示在 3D 视图里。
 
 ## 工作原理
 

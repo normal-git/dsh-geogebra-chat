@@ -76,7 +76,7 @@ The Agent first calls `geogebra_check`, then creates a new board from the old on
 
 | Tool | Purpose |
 |---|---|
-| `geogebra_create` | Create a board (name required; optional `from` an old board) |
+| `geogebra_create` | Create a board (name and `appName` required; optional `from` an old board) |
 | `geogebra_amend` | Resend or fix commands in the same turn, keeping existing objects |
 | `geogebra_commit` | Freeze a draft early |
 | `geogebra_check` | What the user changed, plus the current sheet |
@@ -89,7 +89,7 @@ The Agent first calls `geogebra_check`, then creates a new board from the old on
 
 Tools return GeoGebra's own object list (labels, types, definitions, text), not XML or images, to keep context usage down.
 
-Modes: `suite` (default), `classic`, `graphing`, `geometry`, `3d`, `scientific` and others. Constructions with `(x,y,z)` coordinates switch to `3d` automatically, and 3D cards render in the 3D view. When unsure, the Agent calls `geogebra_modes` first.
+Modes: `suite`, `classic`, `graphing`, `geometry`, `3d`, `scientific` and others. Every `create` must pass an explicit `appName`: use `3d` for 3D, `graphing` for pure functions, `geometry` or `suite` for constructions. When unsure, the Agent calls `geogebra_modes` first. 3D cards render in the 3D view.
 
 ## How it works
 

@@ -65,26 +65,6 @@ export const MODES: readonly AppMode[] = [
   },
 ]
 
-/** Commands that only make sense in the 3D app. */
-const COMMANDS_3D = new Set([
-  'Cube', 'Tetrahedron', 'Octahedron', 'Dodecahedron', 'Icosahedron',
-  'Prism', 'Pyramid', 'Sphere', 'Cylinder', 'Cone', 'Plane', 'Polyhedron',
-  'Surface', 'Curve', 'Net', 'Volume',
-])
-
-/** A coordinate triple such as `(0, 0, 2)` means 3D. */
-const COORD_3D = /\(\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\)/
-
-/** Pick an app when the model did not specify one. Only 3D is inferred. */
-export function inferApp(commands: readonly string[]): string {
-  for (const line of commands) {
-    if (COORD_3D.test(line)) return '3d'
-    const name = /\b([A-Z][A-Za-z0-9]*)\s*\(/.exec(line)?.[1]
-    if (name !== undefined && COMMANDS_3D.has(name)) return '3d'
-  }
-  return 'suite'
-}
-
 /** One-line hint for a mode, used in tool results. Empty for ordinary modes. */
 export function modeNote(appName: string): string {
   if (appName !== '3d') return ''
