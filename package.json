@@ -33,7 +33,8 @@
     "lib/index.js",
     "lib/client.js",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "NOTICE"
   ],
   "scripts": {
     "build": "node scripts/build.mjs",

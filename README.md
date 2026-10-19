@@ -147,7 +147,7 @@ pnpm watch        # 开发时增量构建
 
 插件代码 MIT，见 [LICENSE](LICENSE)。
 
-GeoGebra 由 International GeoGebra Institute 授权，使用受 [GeoGebra License](https://www.geogebra.org/license) 约束；本仓库**不包含** GeoGebra 代码，默认从官方 CDN 加载。
+GeoGebra 由 International GeoGebra Institute 授权，使用受 [GeoGebra License](https://www.geogebra.org/license) 约束；本仓库**不包含** GeoGebra 代码，默认从官方 CDN 加载。第三方声明见 [NOTICE](NOTICE)。
 
 ---
 

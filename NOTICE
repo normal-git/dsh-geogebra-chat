@@ -1,0 +1,12 @@
+DSH GeoGebra Chat
+Copyright (c) 2026 normal-git
+Licensed under the MIT License (see LICENSE).
+
+Third-party notice: GeoGebra
+
+This project does not include GeoGebra. At runtime it loads GeoGebra from
+geogebra.org (or from a GeoGebra build supplied by the user). GeoGebra is a
+separate product by the International GeoGebra Institute and is governed by
+the GeoGebra License, not by this project's MIT license.
+
+GeoGebra License: https://www.geogebra.org/license
