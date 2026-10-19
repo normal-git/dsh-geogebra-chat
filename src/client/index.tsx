@@ -110,6 +110,7 @@ function boardHtml(showInput: boolean, perspective: string, appName: string): st
             var history = [];
             var future = [];
             var applying = false;
+            var historyEnabled = false;
             var lastXml = null;
             var lastKey = '';
 
@@ -129,28 +130,47 @@ function boardHtml(showInput: boolean, perspective: string, appName: string): st
               }
               return out;
             }
-            function keyOf(xml) {
-              return stripBlock(stripBlock(xml, 'euclidianView'), 'euclidianView3D');
-            }
-            function viewBlock(xml) {
-              var open = '<euclidianView';
-              var close = '</euclidianView>';
+            function block(xml, tag) {
+              var open = '<' + tag;
+              var close = '</' + tag + '>';
               var start = xml.indexOf(open);
+              while (start >= 0) {
+                var next = xml.charAt(start + open.length);
+                var code = xml.charCodeAt(start + open.length);
+                if (next === '>' || code === 32 || code === 9 || code === 10 || code === 13) break;
+                start = xml.indexOf(open, start + 1);
+              }
               if (start < 0) return null;
               var end = xml.indexOf(close, start);
               if (end < 0) return null;
               return { start: start, text: xml.slice(start, end + close.length) };
             }
+            function replaceBlock(xml, tag, text) {
+              var target = block(xml, tag);
+              if (target === null) return xml;
+              return xml.slice(0, target.start) + text + xml.slice(target.start + target.text.length);
+            }
+            function keyOf(xml) {
+              return stripBlock(stripBlock(stripBlock(xml, 'euclidianView'), 'euclidianView3D'), 'perspective');
+            }
             function withCurrentView(xml) {
-              var current = viewBlock(api.getXML());
-              var target = viewBlock(xml);
-              if (current === null || target === null) return xml;
-              return xml.slice(0, target.start) + current.text + xml.slice(target.start + target.text.length);
+              var cur = api.getXML();
+              var out = xml;
+              var view = block(cur, 'euclidianView');
+              if (view !== null) out = replaceBlock(out, 'euclidianView', view.text);
+              var perspective = block(cur, 'perspective');
+              if (perspective !== null) out = replaceBlock(out, 'perspective', perspective.text);
+              return out;
             }
             function remember() {
               if (applying) return;
               var xml = api.getXML();
               var key = keyOf(xml);
+              if (!historyEnabled) {
+                lastXml = xml;
+                lastKey = key;
+                return;
+              }
               if (lastXml !== null && key !== lastKey) {
                 history.push(lastXml);
                 if (history.length > 50) history.shift();
@@ -188,8 +208,34 @@ function boardHtml(showInput: boolean, perspective: string, appName: string): st
               }
               applySnapshot(xml);
             };
+            // History starts only after the initial construction is on screen.
+            window.__dshEnableHistory = function () {
+              historyEnabled = true;
+              lastXml = api.getXML();
+              lastKey = keyOf(lastXml);
+            };
+            // UI-only changes (e.g. showing the algebra pane) must not become
+            // undo steps.
+            window.__dshIgnoreNext = function () {
+              applying = true;
+              setTimeout(function () {
+                lastXml = api.getXML();
+                lastKey = keyOf(lastXml);
+                applying = false;
+              }, 400);
+            };
             remember();
             window.setInterval(remember, 500);
+            // User edits fire update events; debounce them into one snapshot per
+            // action, which keeps undo steps close to GeoGebra's native ones.
+            var snapshotTimer = null;
+            try {
+              api.registerUpdateListener(function () {
+                if (!historyEnabled || applying) return;
+                if (snapshotTimer !== null) window.clearTimeout(snapshotTimer);
+                snapshotTimer = window.setTimeout(remember, 200);
+              });
+            } catch (e) { /* optional API */ }
 
             document.addEventListener('click', function (event) {
               var target = event.target && event.target.closest
@@ -447,6 +493,12 @@ function BoardCard({ node, sessionId }: {
             // Ignore: the applet may not support the call in every mode.
           }
           setBoardReady(true)
+          // Only user edits from here on become undo steps; the construction
+          // that was just drawn is the baseline.
+          try {
+            const win = iframeRef.current?.contentWindow as (Window & { __dshEnableHistory?: () => void }) | undefined
+            win?.__dshEnableHistory?.()
+          } catch { /* ignore */ }
           // GeoGebra can leave stale polygon edges/fills after a (re)load or
           // undo; a couple of repaints settle the canvas.
           const repaint = (): void => {
@@ -533,6 +585,8 @@ function BoardCard({ node, sessionId }: {
     const next = !showAlgebra
     setShowAlgebra(next)
     try {
+      const win = iframeRef.current?.contentWindow as (Window & { __dshIgnoreNext?: () => void }) | undefined
+      win?.__dshIgnoreNext?.()
       apiRef.current?.setPerspective(next ? 'AG' : 'G')
       const doc = iframeRef.current?.contentWindow?.document
       doc?.body.classList.toggle('hide-undo', !next)
