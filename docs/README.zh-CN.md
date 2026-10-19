@@ -6,7 +6,7 @@
 
 ![卡片示例](../assets/card.png)
 
-> 状态：0.1.0 实验版，已在 DSH `0.2.1-rc.2` 上验证。插件接口还在调整，升级 DSH 后可能需要跟着改。
+> 状态：0.1.1 实验版，已在 DSH `0.2.1-rc.2` 上验证。插件接口还在调整，升级 DSH 后可能需要跟着改。
 
 当前版本完全由 AI（DeepSeek）编写，后续会做人工审查。请按实验版本使用。
 
@@ -30,7 +30,7 @@ English: [README.md](../README.md)
 ```yaml
 - insert:
     - id: dsh-geogebra-chat
-      name: '@normal-git/dsh-geogebra-chat'
+      name: 'dsh-geogebra-chat'
 ```
 
 从源码开发时，直接指向 `src/index.ts`（绝对路径）：

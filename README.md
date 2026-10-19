@@ -6,7 +6,7 @@ Draw GeoGebra inside DeepSeek Harness conversations. Every drawing creates a sep
 
 ![Board card](assets/card.png)
 
-> Status: experimental 0.1.0, tested on DSH `0.2.1-rc.2`. Plugin APIs are still changing; you may need to adjust after upgrading DSH.
+> Status: experimental 0.1.1, tested on DSH `0.2.1-rc.2`. Plugin APIs are still changing; you may need to adjust after upgrading DSH.
 
 This version was written entirely by AI (DeepSeek). Human review is planned. Please use it as an experimental version.
 
@@ -30,7 +30,7 @@ After installing the package into your DSH environment, register it in the profi
 ```yaml
 - insert:
     - id: dsh-geogebra-chat
-      name: '@normal-git/dsh-geogebra-chat'
+      name: 'dsh-geogebra-chat'
 ```
 
 For source development, point directly at `src/index.ts` (absolute path):

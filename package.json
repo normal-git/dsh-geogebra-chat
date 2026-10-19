@@ -1,5 +1,5 @@
 {
-  "name": "@normal-git/dsh-geogebra-chat",
+  "name": "dsh-geogebra-chat",
   "version": "0.1.1",
   "description": "DSH GeoGebra Chat: immutable, interactive GeoGebra snapshot boards inside DeepSeek Harness conversations.",
   "displayName": "DSH GeoGebra Chat",

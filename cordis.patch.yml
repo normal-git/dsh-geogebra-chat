@@ -4,4 +4,4 @@
 # package through package.json exports ("./client").
 - insert:
     - id: dsh-geogebra-chat
-      name: '@normal-git/dsh-geogebra-chat'
+      name: 'dsh-geogebra-chat'
