@@ -12,6 +12,7 @@ import { appendPluginRecord } from '@deepseek-ai/dsh-session'
 import { BoardStore, diffText, fmt, sheetText } from './boards.ts'
 import type { BoardRecord } from './boards.ts'
 import { findWhiteColors, lintCommands } from './command-lint.ts'
+import { catalogText, inferApp, modeNote, modeText } from './modes.ts'
 
 /** Cordis plugin name. */
 export const name = 'dsh-geogebra-chat'
@@ -36,7 +37,7 @@ const PROMPT_TEXT = `## GeoGebra 画板
 
 默认用 suite（新版界面，指令最全）。只有用户明确要"函数图形计算器"、且内容只是函数曲线时才用 graphing；evaluator、scientific、notes 按需。
 
-一次 create 成功后就向用户汇报画了什么，不要再调用 inspect、list 或 check，除非需要具体数值、找旧板、或准备基于旧板继续。**边讲边画**：像讲数学题一样，先画一种情况、用正文讲解，再画下一种情况再讲解；图和文字交替出现，别让用户对着一堆图猜。是否分段、每段多长由你判断，简单作图不必强行插话。caption 可选，不要每张都写。只有用户明确要求时才删除画板（geogebra_delete），不要主动删。`
+一次 create 成功后就向用户汇报画了什么，不要再调用 inspect、list 或 check，除非需要具体数值、找旧板、或准备基于旧板继续。**边讲边画**：像讲数学题一样，先画一种情况、用正文讲解，再画下一种情况再讲解；图和文字交替出现，别让用户对着一堆图猜。是否分段、每段多长由你判断，简单作图不必强行插话。caption 可选，不要每张都写。只有用户明确要求时才删除画板（geogebra_delete），不要主动删。不确定用哪个 app 模式时调用 geogebra_modes；含 (x,y,z) 的 3D 构造会自动使用 3d。`
 
 interface SessionLike {
   readonly id: string
@@ -224,7 +225,7 @@ export function apply(ctx: {
         commands: { type: 'string', description: 'GeoGebra input-bar commands, one per line, executed in order.' },
         from: { type: 'string', description: 'Existing board id or name to use as the base construction.' },
         as: { type: 'string', enum: ['current', 'original'], description: 'Which version of `from` to use (default current).' },
-        appName: { type: 'string', description: 'Default suite (modern UI, all commands). classic, graphing, geometry, 3d, evaluator, scientific, notes.' },
+        appName: { type: 'string', description: 'suite (default), classic, graphing, geometry, 3d, scientific, evaluator, notes. 3D coordinates are auto-detected when omitted; see geogebra_modes.' },
       },
     },
     output: {
@@ -254,17 +255,17 @@ export function apply(ctx: {
         baseXml = useOriginal ? from.originalXml : from.currentXml
         if (baseXml === undefined) throw new Error(`${from.boardId} has no saved XML to use as a base`)
       }
+      const commands = commandLines(args.commands)
+      lintOrThrow(commands)
+      const explicitApp = typeof args.appName === 'string' && args.appName.trim() !== ''
+      const appName = explicitApp ? args.appName as string : inferApp(commands)
       const record = store.create({
         sessionId: session.id,
         name: requestedName,
-        appName: typeof args.appName === 'string' ? args.appName : 'suite',
+        appName,
         caption: typeof args.caption === 'string' ? args.caption : undefined,
         baseXml,
-        commands: (() => {
-          const commands = commandLines(args.commands)
-          lintOrThrow(commands)
-          return commands
-        })(),
+        commands,
         turn,
       })
       appendPluginRecord(session as never, BOARD_RECORD as never, {
@@ -281,6 +282,9 @@ export function apply(ctx: {
       const changed = from === undefined ? '' : diffText(from.originalSheet, from.sheet)
       const base = from === undefined ? '' : `，基于 ${from.boardId}「${from.name}」${changed === '' ? '' : `（用户改过：${changed}）`}`
       parts.push(`${record.boardId}「${record.name}」已创建${base}：`)
+      if (!explicitApp && appName === '3d') parts.push('（未指定模式，检测到 3D 坐标，已自动使用 3d。）')
+      const note = modeNote(appName)
+      if (note !== '') parts.push(note)
       parts.push(sheetText(ready.sheet))
       const added = diffText(from?.sheet, ready.sheet)
       if (added !== '') parts.push(`本次新增：${added}`)
@@ -497,6 +501,30 @@ export function apply(ctx: {
       return `已导出 ${record.boardId}「${record.name}」到 ${absolute}`
     },
   }), 'dsh-geogebra-chat: export')
+
+  ctx.effect(() => ctx.tools.register({
+    name: 'geogebra_modes',
+    description: 'List GeoGebra app modes or show one mode in detail. Call this when you are unsure which appName fits the construction.',
+    parameters: {
+      type: 'object',
+      properties: {
+        app: { type: 'string', description: 'Mode id such as suite, classic, graphing, geometry, 3d. Omit to list all.' },
+      },
+    },
+    output: {
+      schema: { type: 'string' },
+      render: (_args: unknown, value: unknown) => [{ type: 'text', text: String(value) }],
+    },
+    async execute(args: { app?: string }) {
+      const app = typeof args.app === 'string' ? args.app.trim() : ''
+      if (app !== '') {
+        const text = modeText(app)
+        if (text === '') throw new Error(`unknown mode "${app}". Available: suite, classic, graphing, geometry, 3d, scientific, evaluator, notes.`)
+        return text
+      }
+      return catalogText()
+    },
+  }), 'dsh-geogebra-chat: modes')
 
   ctx.effect(() => ctx.tools.register({
     name: 'geogebra_delete',

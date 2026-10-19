@@ -84,9 +84,12 @@ The Agent first calls `geogebra_check`, then creates a new board from the old on
 | `geogebra_rename` | Rename a board (id stays the same) |
 | `geogebra_list` | List boards in this session |
 | `geogebra_export` | Export `.ggb` (current or Agent-original version) |
+| `geogebra_modes` | List app modes and their capabilities; use when unsure about `appName` |
 | `geogebra_delete` | Delete a board (only when the user asks) |
 
 Tools return GeoGebra's own object list (labels, types, definitions, text), not XML or images, to keep context usage down.
+
+Modes: `suite` (default), `classic`, `graphing`, `geometry`, `3d`, `scientific` and others. Constructions with `(x,y,z)` coordinates switch to `3d` automatically, and 3D cards render in the 3D view. When unsure, the Agent calls `geogebra_modes` first.
 
 ## How it works
 

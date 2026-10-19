@@ -84,9 +84,12 @@ Agent 会先调 `geogebra_check`，再基于旧板新建一张板。
 | `geogebra_rename` | 改名（编号不变） |
 | `geogebra_list` | 列出本会话的板 |
 | `geogebra_export` | 导出 `.ggb`（当前版或 Agent 原版） |
+| `geogebra_modes` | 查看各 app 模式的能力，不确定 `appName` 时用 |
 | `geogebra_delete` | 删除板（只在用户要求时） |
 
 工具返回的是 GeoGebra 自己的对象清单（标签、类型、定义、文本），不返回 XML 或图片，避免占满上下文。
+
+模式：`suite`（默认）、`classic`、`graphing`、`geometry`、`3d`、`scientific` 等。含 `(x,y,z)` 的构造会自动切到 `3d`，3D 卡片显示在 3D 视图里；不确定时 Agent 会先调 `geogebra_modes`。
 
 ## 工作原理
 

@@ -51,6 +51,12 @@ interface BoardPayload {
 }
 
 /** Blank GeoGebra document: an empty construction, no sample objects. */
+/** Perspective string for an app: 3D uses T/AT, everything else G/AG. */
+function perspectiveFor(appName: string, algebra: boolean): string {
+  if (appName === '3d') return algebra ? 'AT' : 'T'
+  return algebra ? 'AG' : 'G'
+}
+
 function boardHtml(showInput: boolean, perspective: string, appName: string): string {
   return `<!doctype html>
 <html>
@@ -155,10 +161,10 @@ function boardHtml(showInput: boolean, perspective: string, appName: string): st
 
             try {
               api.setAxesVisible(true, true);
-              // Suite keeps its algebra sidebar until the perspective is applied
+              // Suite/3D keep their side panes until the perspective is applied
               // at runtime; the host side calls this again after setXML.
-              if ('${perspective}' === 'G') api.setPerspective('G');
-              document.body.classList.toggle('hide-undo', '${perspective}' === 'G');
+              if ('${perspective}' !== '') api.setPerspective('${perspective}');
+              document.body.classList.toggle('hide-undo', true);
             } catch (e) { fail(String(e)); }
             // The card resizes the iframe element without a window resize event.
             if (typeof ResizeObserver === 'function') {
@@ -373,9 +379,9 @@ function BoardCard({ node, sessionId }: {
             })
           }
           // setXML may restore the saved perspective; keep the compact card
-          // graph-only with the algebra chrome (undo/redo) hidden.
+          // graph-only (or 3D-only) with the algebra chrome (undo/redo) hidden.
           try {
-            api.setPerspective('G')
+            api.setPerspective(perspectiveFor(current.appName, false))
             iframeRef.current?.contentWindow?.document.body.classList.add('hide-undo')
           } catch {
             // Ignore: the applet may not support the call in every mode.
@@ -467,7 +473,7 @@ function BoardCard({ node, sessionId }: {
     const next = !showAlgebra
     setShowAlgebra(next)
     try {
-      apiRef.current?.setPerspective(next ? 'AG' : 'G')
+      apiRef.current?.setPerspective(perspectiveFor(payload?.appName ?? 'suite', next))
       const doc = iframeRef.current?.contentWindow?.document
       doc?.body.classList.toggle('hide-undo', !next)
     } catch {
@@ -692,7 +698,7 @@ function BoardCard({ node, sessionId }: {
             key: `${boardId}:${payload.attempt}:${reloadKey}`,
             ref: iframeRef,
             title: `GeoGebra ${boardId}`,
-            srcDoc: boardHtml(false, 'G', payload.appName),
+            srcDoc: boardHtml(false, perspectiveFor(payload.appName, false), payload.appName),
             style: {
               width: '100%',
               height: '100%',
