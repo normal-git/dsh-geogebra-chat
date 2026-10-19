@@ -36,7 +36,7 @@ const PROMPT_TEXT = `## GeoGebra 画板
 
 默认用 suite（新版界面，指令最全）。只有用户明确要"函数图形计算器"、且内容只是函数曲线时才用 graphing；evaluator、scientific、notes 按需。
 
-一次 create 成功后就向用户汇报画了什么，不要再调用 inspect、list 或 check，除非需要具体数值、找旧板、或准备基于旧板继续。**调用 create 时用 caption 参数写一句你要画什么**（会显示在卡片标题下；写不出具体内容就写一句概览），画完再简短补充结果。只有用户明确要求时才删除画板（geogebra_delete），不要主动删。`
+一次 create 成功后就向用户汇报画了什么，不要再调用 inspect、list 或 check，除非需要具体数值、找旧板、或准备基于旧板继续。**边画边说**：每调用完一次 create，先写一两句话（画了什么、下一步），再调用下一次 create；不要连发多个 create 最后才统一说明。caption 可选，只在需要给卡片留一句摘要时用，不要每张都写。只有用户明确要求时才删除画板（geogebra_delete），不要主动删。`
 
 interface SessionLike {
   readonly id: string
@@ -211,7 +211,6 @@ export function apply(ctx: {
   ctx.effect(() => ctx.tools.register({
     name: 'geogebra_create',
     description: 'Create a new immutable GeoGebra board and return its full construction sheet. '
-      + 'Before calling this tool, write one short sentence saying what you are about to draw. '
       + 'Pass `from` to start from an existing board; the Agent never modifies an existing board. '
       + 'Always give the board a short name. Keep the construction minimal: draw only what the user asked for, '
       + 'with default styling, no extra sliders, labels, intersections, colors or zooming unless requested. '
@@ -221,7 +220,7 @@ export function apply(ctx: {
       required: ['name'],
       properties: {
         name: { type: 'string', description: 'Short board name (4-12 chars), unique in this session.' },
-        caption: { type: 'string', description: 'One sentence describing what you are about to draw; shown on the card. Write it before drawing.' },
+        caption: { type: 'string', description: 'Optional one-line summary shown on the card; omit unless useful.' },
         commands: { type: 'string', description: 'GeoGebra input-bar commands, one per line, executed in order.' },
         from: { type: 'string', description: 'Existing board id or name to use as the base construction.' },
         as: { type: 'string', enum: ['current', 'original'], description: 'Which version of `from` to use (default current).' },

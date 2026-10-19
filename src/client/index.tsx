@@ -104,6 +104,28 @@ function boardHtml(showInput: boolean, perspective: string, appName: string): st
           appletOnLoad: function (api) {
             window.ggbAPI = api;
             status.hidden = true;
+            // One-shot undo hook: after "还原", pressing GeoGebra's undo (button
+            // or Ctrl+Z) restores the user's own version, because setXML does not
+            // participate in GeoGebra's undo stack.
+            window.__dshRestore = null;
+            document.addEventListener('click', function (event) {
+              var target = event.target && event.target.closest ? event.target.closest('.undoRedoPanel button.undo') : null;
+              if (target === null || typeof window.__dshRestore !== 'string') return;
+              event.preventDefault();
+              event.stopPropagation();
+              var xml = window.__dshRestore;
+              window.__dshRestore = null;
+              try { api.setXML(xml); } catch (e) { fail(String(e)); }
+            }, true);
+            document.addEventListener('keydown', function (event) {
+              if (!(event.ctrlKey || event.metaKey) || String(event.key).toLowerCase() !== 'z') return;
+              if (typeof window.__dshRestore !== 'string') return;
+              event.preventDefault();
+              event.stopPropagation();
+              var xml = window.__dshRestore;
+              window.__dshRestore = null;
+              try { api.setXML(xml); } catch (e) { fail(String(e)); }
+            }, true);
             try {
               api.setAxesVisible(true, true);
               // Suite keeps its algebra sidebar until the perspective is applied
@@ -111,6 +133,16 @@ function boardHtml(showInput: boolean, perspective: string, appName: string): st
               if ('${perspective}' === 'G') api.setPerspective('G');
               document.body.classList.toggle('hide-undo', '${perspective}' === 'G');
             } catch (e) { fail(String(e)); }
+            // The card resizes the iframe element without a window resize event.
+            if (typeof ResizeObserver === 'function') {
+              new ResizeObserver(function () {
+                if (!window.ggbAPI) return;
+                try {
+                  window.ggbAPI.setWidth(document.documentElement.clientWidth);
+                  window.ggbAPI.setHeight(document.documentElement.clientHeight);
+                } catch (e) { /* ignore */ }
+              }).observe(document.getElementById('ggb'));
+            }
           },
         };
         try {
@@ -227,8 +259,8 @@ function BoardCard({ node, sessionId }: {
   const [collapsed, setCollapsed] = React.useState(false)
   const [boardReady, setBoardReady] = React.useState(false)
   const [resizing, setResizing] = React.useState(false)
-  const [interactive, setInteractive] = React.useState(false)
   const [deleted, setDeleted] = React.useState(false)
+  const [confirmDelete, setConfirmDelete] = React.useState(false)
 
   React.useEffect(() => {
     if (typeof sessionId !== 'string' || boardId === '' || rpc === undefined) return
@@ -399,7 +431,13 @@ function BoardCard({ node, sessionId }: {
   const resetToOriginal = (): void => {
     if (payload?.originalXml === undefined) return
     try {
-      apiRef.current?.setXML(payload.originalXml)
+      const api = apiRef.current
+      const current = api?.getXML()
+      const win = iframeRef.current?.contentWindow as (Window & { __dshRestore?: string | null }) | undefined
+      // Keep the user's version so one undo returns to it (setXML itself is
+      // not undoable inside GeoGebra).
+      if (win !== undefined && typeof current === 'string') win.__dshRestore = current
+      api?.setXML(payload.originalXml)
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : String(failure))
     }
@@ -410,6 +448,16 @@ function BoardCard({ node, sessionId }: {
     void rpc.call('/api', 'geogebra/board/delete', { sessionId, boardId }).then((response) => {
       if (response.ok) setDeleted(true)
     }).catch(() => undefined)
+  }
+
+  const requestDelete = (): void => {
+    if (confirmDelete) {
+      setConfirmDelete(false)
+      deleteBoard()
+      return
+    }
+    setConfirmDelete(true)
+    window.setTimeout(() => setConfirmDelete(false), 4000)
   }
 
   const startResize = (event: React.PointerEvent<HTMLDivElement>): void => {
@@ -445,7 +493,30 @@ function BoardCard({ node, sessionId }: {
     style: { width: '1px', height: '12px', background: '#e5e7eb', margin: '0 2px' },
   })
 
-  if (deleted) return null as unknown as React.JSX.Element
+  if (deleted) {
+    return React.createElement('div', {
+      style: {
+        border: '1px solid var(--dsh-border, #e5e7eb)',
+        borderRadius: '10px',
+        margin: '8px 0',
+        background: 'var(--dsh-surface, #fff)',
+        overflow: 'hidden',
+      },
+    }, React.createElement('div', {
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        padding: '5px 10px',
+        background: '#f7f8fa',
+        color: '#9ca3af',
+        fontSize: '12px',
+      },
+    }, [
+      React.createElement('span', { key: 'title' }, `${name} - ${boardId}`),
+      React.createElement('span', { key: 'state' }, '已被删除'),
+    ]))
+  }
 
   return React.createElement('div', {
     style: {
@@ -505,17 +576,17 @@ function BoardCard({ node, sessionId }: {
         React.createElement('button', {
           key: 'collapse',
           type: 'button',
-          'aria-label': collapsed ? '展开画板' : '收起画板',
+          'aria-label': collapsed ? '展开画板' : '折叠画板',
           onClick: () => setCollapsed(value => !value),
           style: linkButtonStyle,
-        }, collapsed ? '展开' : '收起'),
+        }, collapsed ? '展开' : '折叠'),
         divider('d3'),
         React.createElement('button', {
           key: 'delete',
           type: 'button',
-          onClick: deleteBoard,
-          style: { ...linkButtonStyle, color: '#b3261e' },
-        }, '删除'),
+          onClick: requestDelete,
+          style: { ...linkButtonStyle, color: '#b3261e', minWidth: '4.5em', textAlign: 'center' },
+        }, confirmDelete ? '确认删除' : '删除'),
       ]),
     ]),
     payload?.caption === undefined ? null : React.createElement('div', {
@@ -533,14 +604,19 @@ function BoardCard({ node, sessionId }: {
     React.createElement('div', {
       key: 'board',
       style: {
-        display: collapsed ? 'none' : 'grid',
-        gap: '2px',
-        padding: '6px 10px 8px',
+        display: 'grid',
+        gridTemplateRows: collapsed ? '0fr' : '1fr',
+        transition: 'grid-template-rows 200ms ease',
       },
+    }, React.createElement('div', {
+      key: 'clip',
+      style: { overflow: 'hidden' },
+    }, React.createElement('div', {
+      key: 'inner',
+      style: { display: 'grid', gap: '2px', padding: '6px 10px 8px' },
     }, [
       React.createElement('div', {
         key: 'frame',
-        onMouseLeave: () => setInteractive(false),
         style: { position: 'relative', height: boardHeight, minHeight: '180px' },
       }, [
         payload === null
@@ -577,17 +653,6 @@ function BoardCard({ node, sessionId }: {
             },
           }, '正在绘制…')
           : null,
-        payload !== null && boardReady && !interactive
-          ? React.createElement('div', {
-            key: 'activate',
-            title: '点击后与画板交互；未点击时滚轮用于滚动对话',
-            onClick: () => {
-              setInteractive(true)
-              try { iframeRef.current?.contentWindow?.focus() } catch { /* ignore */ }
-            },
-            style: { position: 'absolute', inset: 0, zIndex: 1, cursor: 'default' },
-          })
-          : null,
       ]),
       React.createElement('div', {
         key: 'resize',
@@ -598,7 +663,7 @@ function BoardCard({ node, sessionId }: {
         key: 'grip',
         style: { width: '36px', height: '2px', borderRadius: '1px', background: 'var(--dsh-border, #d9e2ef)' },
       })),
-    ]),
+    ]))),
     loadFailed
       ? React.createElement('div', {
         key: 'load-failed',
