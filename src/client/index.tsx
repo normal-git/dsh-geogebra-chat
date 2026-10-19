@@ -104,51 +104,121 @@ function boardHtml(showInput: boolean, perspective: string, appName: string): st
           appletOnLoad: function (api) {
             window.ggbAPI = api;
             status.hidden = true;
-            // One-shot undo hook: after "还原", pressing GeoGebra's undo (button
-            // or Ctrl+Z) restores the user's own version, because setXML does not
-            // participate in GeoGebra's undo stack.
-            window.__dshRestore = null;
-            document.addEventListener('click', function (event) {
-              var target = event.target && event.target.closest ? event.target.closest('.undoRedoPanel button.undo') : null;
-              if (target === null || typeof window.__dshRestore !== 'string') return;
-              event.preventDefault();
-              event.stopPropagation();
-              var xml = window.__dshRestore;
-              window.__dshRestore = null;
-              try { api.setXML(xml); } catch (e) { fail(String(e)); }
-            }, true);
-            document.addEventListener('keydown', function (event) {
-              if (!(event.ctrlKey || event.metaKey) || String(event.key).toLowerCase() !== 'z') return;
-              if (typeof window.__dshRestore !== 'string') return;
-              event.preventDefault();
-              event.stopPropagation();
-              var xml = window.__dshRestore;
-              window.__dshRestore = null;
-              try { api.setXML(xml); } catch (e) { fail(String(e)); }
-            }, true);
-            // GeoGebra sometimes leaves stale polygon edges/fills after undo or
-            // redo; a repaint fixes the rendering without touching the model.
-            function repaintSoon() {
-              // Undo/redo transitions are briefly inconsistent; keep the
-              // watcher from saving that transient state.
-              window.__dshSuppressUntil = Date.now() + 1200;
-              [120, 360, 800].forEach(function (ms) {
-                setTimeout(function () {
-                  try { if (typeof api.refreshViews === 'function') api.refreshViews(); } catch (e) { /* ignore */ }
-                }, ms);
-              });
+
+            // GeoGebra 6's native undo can corrupt polygons (edges detached
+            // from the fill), so undo/redo run on full XML snapshots instead.
+            var history = [];
+            var future = [];
+            var applying = false;
+            var lastXml = null;
+            var lastKey = '';
+
+            function repaint() {
+              try { if (typeof api.refreshViews === 'function') api.refreshViews(); } catch (e) { /* ignore */ }
             }
+            function stripBlock(xml, tag) {
+              var open = '<' + tag;
+              var close = '</' + tag + '>';
+              var out = xml;
+              var start = out.indexOf(open);
+              while (start >= 0) {
+                var end = out.indexOf(close, start);
+                if (end < 0) break;
+                out = out.slice(0, start) + out.slice(end + close.length);
+                start = out.indexOf(open);
+              }
+              return out;
+            }
+            function keyOf(xml) {
+              return stripBlock(stripBlock(xml, 'euclidianView'), 'euclidianView3D');
+            }
+            function viewBlock(xml) {
+              var open = '<euclidianView';
+              var close = '</euclidianView>';
+              var start = xml.indexOf(open);
+              if (start < 0) return null;
+              var end = xml.indexOf(close, start);
+              if (end < 0) return null;
+              return { start: start, text: xml.slice(start, end + close.length) };
+            }
+            function withCurrentView(xml) {
+              var current = viewBlock(api.getXML());
+              var target = viewBlock(xml);
+              if (current === null || target === null) return xml;
+              return xml.slice(0, target.start) + current.text + xml.slice(target.start + target.text.length);
+            }
+            function remember() {
+              if (applying) return;
+              var xml = api.getXML();
+              var key = keyOf(xml);
+              if (lastXml !== null && key !== lastKey) {
+                history.push(lastXml);
+                if (history.length > 50) history.shift();
+                future.length = 0;
+              }
+              lastXml = xml;
+              lastKey = key;
+            }
+            function applySnapshot(xml) {
+              applying = true;
+              window.__dshSuppressUntil = Date.now() + 700;
+              try { api.setXML(withCurrentView(xml)); } catch (e) { fail(String(e)); }
+              lastXml = api.getXML();
+              lastKey = keyOf(lastXml);
+              setTimeout(function () { applying = false; repaint(); }, 30);
+              [120, 360].forEach(function (ms) { setTimeout(repaint, ms); });
+            }
+            function undo() {
+              if (history.length === 0) return false;
+              future.push(api.getXML());
+              applySnapshot(history.pop());
+              return true;
+            }
+            function redo() {
+              if (future.length === 0) return false;
+              history.push(api.getXML());
+              applySnapshot(future.pop());
+              return true;
+            }
+            window.__dshApply = function (xml) {
+              if (keyOf(api.getXML()) !== keyOf(xml)) {
+                history.push(api.getXML());
+                if (history.length > 50) history.shift();
+                future.length = 0;
+              }
+              applySnapshot(xml);
+            };
+            remember();
+            window.setInterval(remember, 500);
+
             document.addEventListener('click', function (event) {
               var target = event.target && event.target.closest
                 ? event.target.closest('.undoRedoPanel button.undo, .undoRedoPanel button.redo')
                 : null;
-              if (target !== null) repaintSoon();
-            }, false);
+              if (target === null) return;
+              event.preventDefault();
+              event.stopPropagation();
+              var changed = target.classList.contains('undo') ? undo() : redo();
+              if (changed) repaint();
+            }, true);
             document.addEventListener('keydown', function (event) {
               if (!(event.ctrlKey || event.metaKey)) return;
+              var el = event.target;
+              if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
               var key = String(event.key).toLowerCase();
-              if (key === 'z' || key === 'y') repaintSoon();
-            }, false);
+              if (key === 'z') {
+                event.preventDefault();
+                event.stopPropagation();
+                if (event.shiftKey) redo(); else undo();
+                repaint();
+              } else if (key === 'y') {
+                event.preventDefault();
+                event.stopPropagation();
+                redo();
+                repaint();
+              }
+            }, true);
+
             try {
               api.setAxesVisible(true, true);
               // Suite keeps its algebra sidebar until the perspective is applied
@@ -474,13 +544,9 @@ function BoardCard({ node, sessionId }: {
   const resetToOriginal = (): void => {
     if (payload?.originalXml === undefined) return
     try {
-      const api = apiRef.current
-      const current = api?.getXML()
-      const win = iframeRef.current?.contentWindow as (Window & { __dshRestore?: string | null }) | undefined
-      // Keep the user's version so one undo returns to it (setXML itself is
-      // not undoable inside GeoGebra).
-      if (win !== undefined && typeof current === 'string') win.__dshRestore = current
-      api?.setXML(payload.originalXml)
+      const win = iframeRef.current?.contentWindow as (Window & { __dshApply?: (xml: string) => void }) | undefined
+      if (win !== undefined && typeof win.__dshApply === 'function') win.__dshApply(payload.originalXml)
+      else apiRef.current?.setXML(payload.originalXml)
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : String(failure))
     }

@@ -151,6 +151,31 @@ export class BoardStore {
     return join(this.#dir(sessionId), `${boardId}.json`)
   }
 
+  /**
+   * Monotonic board index for a session. Board ids must never be reused: the
+   * conversation node key is the board id, so a reused id would merge a new
+   * board into an old (possibly deleted) card.
+   */
+  #nextIndex(sessionId: string): number {
+    const file = join(this.#dir(sessionId), 'seq.txt')
+    let next = 1
+    try {
+      if (existsSync(file)) {
+        const parsed = Number(readFileSync(file, 'utf8').trim())
+        if (Number.isInteger(parsed) && parsed > 0) next = parsed
+      }
+    } catch {
+      // Fall back to 1 when the counter is unreadable.
+    }
+    try {
+      mkdirSync(this.#dir(sessionId), { recursive: true })
+      writeFileSync(file, String(next + 1), 'utf8')
+    } catch {
+      // The in-memory board still gets a unique-enough id.
+    }
+    return next
+  }
+
   #load(sessionId: string): Map<string, BoardRecord> {
     const cached = this.#sessions.get(sessionId)
     if (cached !== undefined) return cached
@@ -195,7 +220,7 @@ export class BoardStore {
   }): BoardRecord {
     const boards = this.#load(input.sessionId)
     if (boards.size >= MAX_BOARDS) throw new Error(`this session already has ${MAX_BOARDS} boards`)
-    let index = boards.size + 1
+    let index = this.#nextIndex(input.sessionId)
     while (boards.has(`b${index}`)) index += 1
     const taken = new Set([...boards.values()].map(record => record.name))
     let name = input.name.trim() || `板${index}`
