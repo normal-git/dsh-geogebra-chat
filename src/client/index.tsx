@@ -126,6 +126,29 @@ function boardHtml(showInput: boolean, perspective: string, appName: string): st
               window.__dshRestore = null;
               try { api.setXML(xml); } catch (e) { fail(String(e)); }
             }, true);
+            // GeoGebra sometimes leaves stale polygon edges/fills after undo or
+            // redo; a repaint fixes the rendering without touching the model.
+            function repaintSoon() {
+              // Undo/redo transitions are briefly inconsistent; keep the
+              // watcher from saving that transient state.
+              window.__dshSuppressUntil = Date.now() + 1200;
+              [120, 360, 800].forEach(function (ms) {
+                setTimeout(function () {
+                  try { if (typeof api.refreshViews === 'function') api.refreshViews(); } catch (e) { /* ignore */ }
+                }, ms);
+              });
+            }
+            document.addEventListener('click', function (event) {
+              var target = event.target && event.target.closest
+                ? event.target.closest('.undoRedoPanel button.undo, .undoRedoPanel button.redo')
+                : null;
+              if (target !== null) repaintSoon();
+            }, false);
+            document.addEventListener('keydown', function (event) {
+              if (!(event.ctrlKey || event.metaKey)) return;
+              var key = String(event.key).toLowerCase();
+              if (key === 'z' || key === 'y') repaintSoon();
+            }, false);
             try {
               api.setAxesVisible(true, true);
               // Suite keeps its algebra sidebar until the perspective is applied
@@ -243,6 +266,7 @@ function BoardCard({ node, sessionId }: {
 }): React.JSX.Element {
   const boardId = typeof node.data?.boardId === 'string' ? node.data.boardId : ''
   const name = typeof node.data?.name === 'string' ? node.data.name : boardId
+  const foldKey = `dsh-geogebra:fold:${String(sessionId ?? '')}:${boardId}`
   const iframeRef = React.useRef<HTMLIFrameElement | null>(null)
   const apiRef = React.useRef<any>(null)
   const startedRef = React.useRef(false)
@@ -256,10 +280,13 @@ function BoardCard({ node, sessionId }: {
   const [loadFailed, setLoadFailed] = React.useState(false)
   const [reloadKey, setReloadKey] = React.useState(0)
   const [boardHeight, setBoardHeight] = React.useState(440)
-  const [collapsed, setCollapsed] = React.useState(false)
+  const [collapsed, setCollapsed] = React.useState(() => {
+    try { return window.localStorage.getItem(foldKey) === '1' } catch { return false }
+  })
   const [boardReady, setBoardReady] = React.useState(false)
   const [resizing, setResizing] = React.useState(false)
   const [deleted, setDeleted] = React.useState(false)
+  const [deleting, setDeleting] = React.useState(false)
   const [confirmDelete, setConfirmDelete] = React.useState(false)
 
   React.useEffect(() => {
@@ -350,6 +377,14 @@ function BoardCard({ node, sessionId }: {
             // Ignore: the applet may not support the call in every mode.
           }
           setBoardReady(true)
+          // GeoGebra can leave stale polygon edges/fills after a (re)load or
+          // undo; a couple of repaints settle the canvas.
+          const repaint = (): void => {
+            try { api.refreshViews?.() } catch { /* ignore */ }
+          }
+          repaint()
+          window.setTimeout(repaint, 250)
+          window.setTimeout(repaint, 800)
           // GeoGebra's JS listeners do not fire for programmatic changes, so
           // watch the serialized construction locally (cheap: one getXML/s) and
           // report only when it actually changed.
@@ -357,6 +392,14 @@ function BoardCard({ node, sessionId }: {
           const scheduleUpdate = (): void => {
             if (debounceRef.current !== undefined) window.clearTimeout(debounceRef.current)
             debounceRef.current = window.setTimeout(() => {
+              // Undo/redo can produce transient, inconsistent constructions
+              // (e.g. polygon edges separated from the fill). Do not persist
+              // that state; wait until GeoGebra has settled.
+              const win = iframeRef.current?.contentWindow as (Window & { __dshSuppressUntil?: number }) | undefined
+              if (win !== undefined && typeof win.__dshSuppressUntil === 'number' && Date.now() < win.__dshSuppressUntil) {
+                scheduleUpdate()
+                return
+              }
               if (rpc === undefined) return
               void rpc.call('/api', 'geogebra/board/update', {
                 sessionId,
@@ -445,9 +488,26 @@ function BoardCard({ node, sessionId }: {
 
   const deleteBoard = (): void => {
     if (rpc === undefined || typeof sessionId !== 'string') return
+    setDeleting(true)
     void rpc.call('/api', 'geogebra/board/delete', { sessionId, boardId }).then((response) => {
-      if (response.ok) setDeleted(true)
-    }).catch(() => undefined)
+      if (!response.ok) {
+        setDeleting(false)
+        return
+      }
+      // Let the fold animation finish before swapping to the tombstone.
+      window.setTimeout(() => {
+        setDeleted(true)
+        try { window.localStorage.removeItem(foldKey) } catch { /* ignore */ }
+      }, 240)
+    }).catch(() => setDeleting(false))
+  }
+
+  const toggleCollapsed = (): void => {
+    setCollapsed((value) => {
+      const next = !value
+      try { window.localStorage.setItem(foldKey, next ? '1' : '0') } catch { /* ignore */ }
+      return next
+    })
   }
 
   const requestDelete = (): void => {
@@ -577,7 +637,7 @@ function BoardCard({ node, sessionId }: {
           key: 'collapse',
           type: 'button',
           'aria-label': collapsed ? '展开画板' : '折叠画板',
-          onClick: () => setCollapsed(value => !value),
+          onClick: toggleCollapsed,
           style: linkButtonStyle,
         }, collapsed ? '展开' : '折叠'),
         divider('d3'),
@@ -605,7 +665,7 @@ function BoardCard({ node, sessionId }: {
       key: 'board',
       style: {
         display: 'grid',
-        gridTemplateRows: collapsed ? '0fr' : '1fr',
+        gridTemplateRows: collapsed || deleting ? '0fr' : '1fr',
         transition: 'grid-template-rows 200ms ease',
       },
     }, React.createElement('div', {

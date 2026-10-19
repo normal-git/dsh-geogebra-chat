@@ -36,7 +36,7 @@ const PROMPT_TEXT = `## GeoGebra 画板
 
 默认用 suite（新版界面，指令最全）。只有用户明确要"函数图形计算器"、且内容只是函数曲线时才用 graphing；evaluator、scientific、notes 按需。
 
-一次 create 成功后就向用户汇报画了什么，不要再调用 inspect、list 或 check，除非需要具体数值、找旧板、或准备基于旧板继续。**边画边说**：每调用完一次 create，先写一两句话（画了什么、下一步），再调用下一次 create；不要连发多个 create 最后才统一说明。caption 可选，只在需要给卡片留一句摘要时用，不要每张都写。只有用户明确要求时才删除画板（geogebra_delete），不要主动删。`
+一次 create 成功后就向用户汇报画了什么，不要再调用 inspect、list 或 check，除非需要具体数值、找旧板、或准备基于旧板继续。**边讲边画**：像讲数学题一样，先画一种情况、用正文讲解，再画下一种情况再讲解；图和文字交替出现，别让用户对着一堆图猜。是否分段、每段多长由你判断，简单作图不必强行插话。caption 可选，不要每张都写。只有用户明确要求时才删除画板（geogebra_delete），不要主动删。`
 
 interface SessionLike {
   readonly id: string
