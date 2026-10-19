@@ -47,6 +47,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "watch": "node scripts/build.mjs --watch",
+    "prepare": "node scripts/build.mjs",
     "prepublishOnly": "node scripts/build.mjs"
   },
   "devDependencies": {
