@@ -227,6 +227,8 @@ function BoardCard({ node, sessionId }: {
   const [collapsed, setCollapsed] = React.useState(false)
   const [boardReady, setBoardReady] = React.useState(false)
   const [resizing, setResizing] = React.useState(false)
+  const [interactive, setInteractive] = React.useState(false)
+  const [deleted, setDeleted] = React.useState(false)
 
   React.useEffect(() => {
     if (typeof sessionId !== 'string' || boardId === '' || rpc === undefined) return
@@ -235,7 +237,9 @@ function BoardCard({ node, sessionId }: {
     void call.call('/api', 'geogebra/board/get', { sessionId, boardId }).then((response) => {
       if (cancelled) return
       if (!response.ok) {
-        setError(response.error?.message ?? '画板不存在')
+        const message = response.error?.message ?? '画板不存在'
+        if (/not found/i.test(message)) setDeleted(true)
+        else setError(message)
         return
       }
       setPayload(response.value as BoardPayload)
@@ -401,6 +405,13 @@ function BoardCard({ node, sessionId }: {
     }
   }
 
+  const deleteBoard = (): void => {
+    if (rpc === undefined || typeof sessionId !== 'string') return
+    void rpc.call('/api', 'geogebra/board/delete', { sessionId, boardId }).then((response) => {
+      if (response.ok) setDeleted(true)
+    }).catch(() => undefined)
+  }
+
   const startResize = (event: React.PointerEvent<HTMLDivElement>): void => {
     event.preventDefault()
     const startY = event.clientY
@@ -418,83 +429,118 @@ function BoardCard({ node, sessionId }: {
     window.addEventListener('pointerup', onUp)
   }
 
+  const linkButtonStyle = {
+    background: 'transparent',
+    border: 'none',
+    color: '#4b5563',
+    fontSize: '12px',
+    lineHeight: '18px',
+    padding: '2px 6px',
+    cursor: 'pointer',
+    borderRadius: '4px',
+    whiteSpace: 'nowrap' as const,
+  }
+  const divider = (key: string): React.JSX.Element => React.createElement('span', {
+    key,
+    style: { width: '1px', height: '12px', background: '#e5e7eb', margin: '0 2px' },
+  })
+
+  if (deleted) return null as unknown as React.JSX.Element
+
   return React.createElement('div', {
     style: {
-      border: '1px solid var(--dsh-border, #d9e2ef)',
+      border: '1px solid var(--dsh-border, #e5e7eb)',
       borderRadius: '10px',
-      padding: '8px 10px',
       margin: '8px 0',
       background: 'var(--dsh-surface, #fff)',
-      display: 'grid',
-      gap: '6px',
+      overflow: 'hidden',
     },
   }, [
     React.createElement('div', {
       key: 'head',
-      style: { display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 },
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        padding: '5px 10px',
+        background: '#f7f8fa',
+        borderBottom: '1px solid #e8ebf0',
+      },
     }, [
       React.createElement('span', {
         key: 'title',
+        title: `${payload?.name ?? name} - ${boardId}`,
         style: {
-          fontSize: '13px',
+          fontSize: '12px',
           fontWeight: 400,
+          color: '#374151',
           whiteSpace: 'nowrap',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
+          minWidth: 0,
         },
       }, `${payload?.name ?? name} - ${boardId}`),
       status === '' ? null : React.createElement('span', {
         key: 'status',
-        style: {
-          color: 'var(--dsh-text-secondary, #6b7c93)',
-          fontSize: '12px',
-          marginLeft: '4px',
-          whiteSpace: 'nowrap',
-        },
+        style: { color: '#9ca3af', fontSize: '12px', whiteSpace: 'nowrap' },
       }, status),
       React.createElement('div', {
         key: 'actions',
-        style: { marginLeft: 'auto', display: 'flex', gap: '6px' },
+        style: { marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '2px' },
       }, [
         React.createElement('button', {
           key: 'algebra',
           type: 'button',
           onClick: toggleAlgebra,
-          style: buttonStyle,
+          style: linkButtonStyle,
         }, showAlgebra ? '隐藏代数区' : '显示代数区'),
+        divider('d1'),
         React.createElement('button', {
           key: 'reset',
           type: 'button',
           onClick: resetToOriginal,
-          style: buttonStyle,
-        }, '回到 Agent 版'),
+          style: linkButtonStyle,
+        }, '还原'),
+        divider('d2'),
         React.createElement('button', {
           key: 'collapse',
           type: 'button',
           'aria-label': collapsed ? '展开画板' : '收起画板',
           onClick: () => setCollapsed(value => !value),
-          style: buttonStyle,
+          style: linkButtonStyle,
         }, collapsed ? '展开' : '收起'),
+        divider('d3'),
+        React.createElement('button', {
+          key: 'delete',
+          type: 'button',
+          onClick: deleteBoard,
+          style: { ...linkButtonStyle, color: '#b3261e' },
+        }, '删除'),
       ]),
     ]),
     payload?.caption === undefined ? null : React.createElement('div', {
       key: 'caption',
       title: payload.caption,
       style: {
+        padding: '6px 10px 0',
         fontSize: '12px',
-        color: 'var(--dsh-text-secondary, #6b7c93)',
-        marginTop: '-2px',
+        color: '#6b7280',
         whiteSpace: 'nowrap',
         overflow: 'hidden',
         textOverflow: 'ellipsis',
       },
     }, payload.caption),
-    collapsed ? null : React.createElement('div', {
+    React.createElement('div', {
       key: 'board',
-      style: { display: 'grid', gap: '2px' },
+      style: {
+        display: collapsed ? 'none' : 'grid',
+        gap: '2px',
+        padding: '6px 10px 8px',
+      },
     }, [
       React.createElement('div', {
         key: 'frame',
+        onMouseLeave: () => setInteractive(false),
         style: { position: 'relative', height: boardHeight, minHeight: '180px' },
       }, [
         payload === null
@@ -531,6 +577,17 @@ function BoardCard({ node, sessionId }: {
             },
           }, '正在绘制…')
           : null,
+        payload !== null && boardReady && !interactive
+          ? React.createElement('div', {
+            key: 'activate',
+            title: '点击后与画板交互；未点击时滚轮用于滚动对话',
+            onClick: () => {
+              setInteractive(true)
+              try { iframeRef.current?.contentWindow?.focus() } catch { /* ignore */ }
+            },
+            style: { position: 'absolute', inset: 0, zIndex: 1, cursor: 'default' },
+          })
+          : null,
       ]),
       React.createElement('div', {
         key: 'resize',
@@ -545,20 +602,20 @@ function BoardCard({ node, sessionId }: {
     loadFailed
       ? React.createElement('div', {
         key: 'load-failed',
-        style: { display: 'flex', alignItems: 'center', gap: '8px', color: '#b3261e', fontSize: '12px' },
+        style: { display: 'flex', alignItems: 'center', gap: '8px', color: '#b3261e', fontSize: '12px', padding: '0 10px 8px' },
       }, [
         React.createElement('span', { key: 't' }, 'GeoGebra 加载超时（可能网络慢）。'),
         React.createElement('button', {
           key: 'retry',
           type: 'button',
           onClick: () => { setLoadFailed(false); setReloadKey(value => value + 1) },
-          style: buttonStyle,
+          style: linkButtonStyle,
         }, '重试'),
       ])
       : null,
     error === '' ? null : React.createElement('div', {
       key: 'error',
-      style: { color: '#b3261e', fontSize: '12px' },
+      style: { color: '#b3261e', fontSize: '12px', padding: '0 10px 8px' },
     }, error),
   ])
 }

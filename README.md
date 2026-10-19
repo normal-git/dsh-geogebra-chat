@@ -46,6 +46,7 @@ dsh --profile <name> --patch .dev/cordis.patch.yml web --port 3099 --no-open
 | `geogebra_rename` | 改名（编号不变） |
 | `geogebra_list` | 列出本会话所有板 |
 | `geogebra_export` | 导出 `.ggb`（当前版/原版） |
+| `geogebra_delete` | 删除一张板（只在用户明确要求时） |
 
 ## 许可
 

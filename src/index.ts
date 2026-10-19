@@ -36,7 +36,7 @@ const PROMPT_TEXT = `## GeoGebra 画板
 
 默认用 suite（新版界面，指令最全）。只有用户明确要"函数图形计算器"、且内容只是函数曲线时才用 graphing；evaluator、scientific、notes 按需。
 
-一次 create 成功后就向用户汇报画了什么，不要再调用 inspect、list 或 check，除非需要具体数值、找旧板、或准备基于旧板继续。**调用 create 时用 caption 参数写一句你要画什么**（会显示在卡片标题下；写不出具体内容就写一句概览），画完再简短补充结果。`
+一次 create 成功后就向用户汇报画了什么，不要再调用 inspect、list 或 check，除非需要具体数值、找旧板、或准备基于旧板继续。**调用 create 时用 caption 参数写一句你要画什么**（会显示在卡片标题下；写不出具体内容就写一句概览），画完再简短补充结果。只有用户明确要求时才删除画板（geogebra_delete），不要主动删。`
 
 interface SessionLike {
   readonly id: string
@@ -148,6 +148,14 @@ export function apply(ctx: {
     })
     if (record === undefined) throw new Error('board is not ready')
     return { boardId, updatedAt: record.updatedAt }
+  })
+
+  registerRoute('delete', (payload) => {
+    const sessionId = String(payload.sessionId ?? '')
+    const boardId = String(payload.boardId ?? '')
+    const removed = store.delete(sessionId, boardId)
+    if (removed === undefined) throw new Error(`board "${boardId}" not found`)
+    return { deleted: removed.boardId }
   })
 
   const resolve = (sessionId: string, reference: unknown): BoardRecord => {
@@ -490,4 +498,28 @@ export function apply(ctx: {
       return `已导出 ${record.boardId}「${record.name}」到 ${absolute}`
     },
   }), 'dsh-geogebra: export')
+
+  ctx.effect(() => ctx.tools.register({
+    name: 'geogebra_delete',
+    description: 'Delete a board and its saved construction. Only call this when the user explicitly asks to delete it; never delete proactively.',
+    parameters: {
+      type: 'object',
+      required: ['board'],
+      properties: {
+        board: { type: 'string', description: 'Board id or name.' },
+      },
+    },
+    output: {
+      schema: { type: 'string' },
+      render: (_args: unknown, value: unknown) => [{ type: 'text', text: String(value) }],
+    },
+    async execute(args: { board?: string }, exec: ExecLike) {
+      const session = exec.agent?.session
+      if (session === undefined) throw new Error('geogebra_delete requires an agent session')
+      store.finalizeBefore(session.id, currentTurn(session))
+      const record = resolve(session.id, args.board)
+      store.delete(session.id, record.boardId)
+      return `已删除 ${record.boardId}「${record.name}」。`
+    },
+  }), 'dsh-geogebra: delete')
 }

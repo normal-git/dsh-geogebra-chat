@@ -5,7 +5,7 @@
  * mounted iframe to read a board. The browser renders the current XML and
  * reports back once (creation) and on user edits.
  */
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 
@@ -367,6 +367,20 @@ export class BoardStore {
     record.sheet = input.sheet
     record.updatedAt = Date.now()
     this.#persist(record)
+    return record
+  }
+
+  /** Delete one board and its snapshot file. */
+  delete(sessionId: string, reference: string): BoardRecord | undefined {
+    const boards = this.#load(sessionId)
+    const record = this.get(sessionId, reference)
+    if (record === undefined) return undefined
+    boards.delete(record.boardId)
+    try {
+      rmSync(this.#file(sessionId, record.boardId), { force: true })
+    } catch {
+      // The in-memory removal still applies.
+    }
     return record
   }
 
