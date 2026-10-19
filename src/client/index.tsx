@@ -1,5 +1,5 @@
 /**
- * dsh-geogebra — browser half.
+ * dsh-geogebra-chat — browser half.
  *
  * One card per immutable board. The card fetches the board payload from the
  * Host, renders the construction once, executes the creation commands, reports
@@ -10,7 +10,7 @@
  */
 import * as React from 'react'
 
-export const name = 'dsh-geogebra-client'
+export const name = 'dsh-geogebra-chat-client'
 
 /** Client services this plugin needs before it may register anything. */
 export const inject = ['slots', 'uiConversation', 'connection']
@@ -270,7 +270,7 @@ function BoardCard({ node, sessionId }: {
 }): React.JSX.Element {
   const boardId = typeof node.data?.boardId === 'string' ? node.data.boardId : ''
   const name = typeof node.data?.name === 'string' ? node.data.name : boardId
-  const foldKey = `dsh-geogebra:fold:${String(sessionId ?? '')}:${boardId}`
+  const foldKey = `dsh-geogebra-chat:fold:${String(sessionId ?? '')}:${boardId}`
   const iframeRef = React.useRef<HTMLIFrameElement | null>(null)
   const apiRef = React.useRef<any>(null)
   const startedRef = React.useRef(false)
@@ -754,7 +754,7 @@ const boardNodeDefinition = {
   kind: 'geogebra-board',
   target: 'chat',
   match: (event: { type: string, seq: number, data?: Record<string, unknown> }) => {
-    if (event.type !== 'plugin:dsh-geogebra/board') return null
+    if (event.type !== 'plugin:dsh-geogebra-chat/board' && event.type !== 'plugin:dsh-geogebra/board') return null
     const boardId = event.data?.boardId
     return { id: typeof boardId === 'string' ? boardId : String(event.seq), role: 'start' }
   },

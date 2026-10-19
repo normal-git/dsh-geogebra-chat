@@ -74,9 +74,9 @@ if (watch) {
   for (const options of [hostOptions, clientOptions]) {
     const ctx = await context(options)
     await ctx.watch()
-    console.log(`[dsh-geogebra] watching ${options.entryPoints[0]}`)
+    console.log(`[dsh-geogebra-chat] watching ${options.entryPoints[0]}`)
   }
 } else {
   await Promise.all([build(hostOptions), build(clientOptions)])
-  console.log('[dsh-geogebra] built lib/index.js + lib/client.js')
+  console.log('[dsh-geogebra-chat] built lib/index.js + lib/client.js')
 }

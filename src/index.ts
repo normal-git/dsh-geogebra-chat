@@ -1,5 +1,5 @@
 /**
- * dsh-geogebra — host half.
+ * dsh-geogebra-chat — host half.
  *
  * Immutable snapshot boards: the Agent creates a board, the browser renders and
  * executes it once, the Host stores XML + sheet + `.ggb`. The Agent never
@@ -14,13 +14,13 @@ import type { BoardRecord } from './boards.ts'
 import { findWhiteColors, lintCommands } from './command-lint.ts'
 
 /** Cordis plugin name. */
-export const name = 'dsh-geogebra'
+export const name = 'dsh-geogebra-chat'
 
 /** Services required before `apply`. */
 export const inject = ['tools', 'sessionProjections', 'connection', 'systemPrompt']
 
 /** Durable plugin-record type carrying one board card. */
-const BOARD_RECORD = 'plugin:dsh-geogebra/board'
+const BOARD_RECORD = 'plugin:dsh-geogebra-chat/board'
 
 /** Where the GeoGebra workflow guidance sits in the system prompt. */
 const PROMPT_ORDER = 3200
@@ -77,7 +77,7 @@ export function apply(ctx: {
   effect(fn: () => () => void, label?: string): void
 }): void {
   const store = new BoardStore(dshHome())
-  ctx.systemPrompt.section({ name: 'dsh-geogebra:workflow', order: PROMPT_ORDER, text: PROMPT_TEXT })
+  ctx.systemPrompt.section({ name: 'dsh-geogebra-chat:workflow', order: PROMPT_ORDER, text: PROMPT_TEXT })
 
   const registerRoute = (endpoint: string, handler: (payload: Record<string, unknown>) => unknown): void => {
     ctx.effect(() => {
@@ -111,7 +111,7 @@ export function apply(ctx: {
         },
       }).then(value => { dispose = value })
       return () => { void dispose?.() }
-    }, `dsh-geogebra: route ${endpoint}`)
+    }, `dsh-geogebra-chat: route ${endpoint}`)
   }
 
   registerRoute('get', (payload) => {
@@ -291,7 +291,7 @@ export function apply(ctx: {
       if (ready.warnings.length > 0) parts.push(...warningLines(ready.warnings))
       return parts.join('\n')
     },
-  }), 'dsh-geogebra: create')
+  }), 'dsh-geogebra-chat: create')
 
   ctx.effect(() => ctx.tools.register({
     name: 'geogebra_amend',
@@ -326,7 +326,7 @@ export function apply(ctx: {
       if (ready.failed.length > 0) parts.push(...failureLines(ready.failed))
       return parts.join('\n')
     },
-  }), 'dsh-geogebra: amend')
+  }), 'dsh-geogebra-chat: amend')
 
   ctx.effect(() => ctx.tools.register({
     name: 'geogebra_commit',
@@ -349,7 +349,7 @@ export function apply(ctx: {
       store.commit(session.id, record.boardId)
       return `${record.boardId}「${record.name}」已定稿。`
     },
-  }), 'dsh-geogebra: commit')
+  }), 'dsh-geogebra-chat: commit')
 
   ctx.effect(() => ctx.tools.register({
     name: 'geogebra_check',
@@ -376,7 +376,7 @@ export function apply(ctx: {
       if (changed === '') return `${record.boardId}「${record.name}」未被修改。`
       return `${record.boardId}「${record.name}」被修改：${changed}。\n当前清单：${sheetText(record.sheet)}`
     },
-  }), 'dsh-geogebra: check')
+  }), 'dsh-geogebra-chat: check')
 
   ctx.effect(() => ctx.tools.register({
     name: 'geogebra_inspect',
@@ -410,7 +410,7 @@ export function apply(ctx: {
       const value = args.detail === 'value' && entry.value !== undefined ? ` · ${entry.value}` : ''
       return `${label}：${entry.definition}${value}`
     },
-  }), 'dsh-geogebra: inspect')
+  }), 'dsh-geogebra-chat: inspect')
 
   ctx.effect(() => ctx.tools.register({
     name: 'geogebra_rename',
@@ -434,7 +434,7 @@ export function apply(ctx: {
       const renamed = store.rename(session.id, record.boardId, String(args.name ?? ''))
       return `${record.boardId} 已改名为「${renamed?.name ?? ''}」。`
     },
-  }), 'dsh-geogebra: rename')
+  }), 'dsh-geogebra-chat: rename')
 
   ctx.effect(() => ctx.tools.register({
     name: 'geogebra_list',
@@ -457,7 +457,7 @@ export function apply(ctx: {
         return `${record.boardId}「${record.name}」${record.sheet?.length ?? 0} 个对象 · ${state}${record.status === 'draft' ? ' · 本轮可改' : ''}`
       }).join('\n')
     },
-  }), 'dsh-geogebra: list')
+  }), 'dsh-geogebra-chat: list')
 
   ctx.effect(() => ctx.tools.register({
     name: 'geogebra_export',
@@ -496,7 +496,7 @@ export function apply(ctx: {
       writeFileSync(absolute, Buffer.from(base64, 'base64'))
       return `已导出 ${record.boardId}「${record.name}」到 ${absolute}`
     },
-  }), 'dsh-geogebra: export')
+  }), 'dsh-geogebra-chat: export')
 
   ctx.effect(() => ctx.tools.register({
     name: 'geogebra_delete',
@@ -520,5 +520,5 @@ export function apply(ctx: {
       store.delete(session.id, record.boardId)
       return `已删除 ${record.boardId}「${record.name}」。`
     },
-  }), 'dsh-geogebra: delete')
+  }), 'dsh-geogebra-chat: delete')
 }

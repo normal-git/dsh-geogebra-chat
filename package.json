@@ -1,8 +1,9 @@
 {
-  "name": "dsh-geogebra",
-  "version": "0.0.0-dev",
-  "description": "GeoGebra board plugin for DeepSeek Harness: interactive construction in chat and the right sidebar.",
-  "private": true,
+  "name": "@normal-git/dsh-geogebra-chat",
+  "version": "0.1.0",
+  "description": "DSH GeoGebra Chat: immutable, interactive GeoGebra snapshot boards inside DeepSeek Harness conversations.",
+  "displayName": "DSH GeoGebra Chat",
+  "private": false,
   "type": "module",
   "license": "MIT",
   "main": "lib/index.js",
@@ -15,6 +16,14 @@
     },
     "./package.json": "./package.json"
   },
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "geogebra",
+    "plugin",
+    "math",
+    "education"
+  ],
   "dsh": {
     "client": {
       "platform": "web"
@@ -23,12 +32,13 @@
   "files": [
     "lib/index.js",
     "lib/client.js",
-    "cordis.patch.yml",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "node scripts/build.mjs",
-    "watch": "node scripts/build.mjs --watch"
+    "watch": "node scripts/build.mjs --watch",
+    "prepublishOnly": "node scripts/build.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.25.12",
