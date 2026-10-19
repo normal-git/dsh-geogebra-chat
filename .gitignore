@@ -4,3 +4,5 @@ lib/
 .research/
 *.log
 *.tgz
+
+docs/设计文档.md
