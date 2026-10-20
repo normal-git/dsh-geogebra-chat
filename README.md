@@ -1,31 +1,37 @@
 # DSH GeoGebra Chat
 
-Draw GeoGebra inside DeepSeek Harness conversations. Every drawing creates a separate snapshot board, so earlier drawings are not overwritten.
+在 DeepSeek Harness 的对话里画 GeoGebra。每次作图生成一张独立的快照板，之前的图不会被覆盖，适合用于 AI 教学。
 
 [DeepSeek Harness](https://github.com/deepseek-ai) · GeoGebra 6 · MIT
 
-![Board card](assets/card.png)
+![卡片示例](/assets/card.png)
 
-> Status: experimental 0.1.1, tested on DSH `0.2.1-rc.2`. Plugin APIs are still changing; you may need to adjust after upgrading DSH.
+> 状态：0.1.1 实验版，已在 DSH `0.2.1-rc.2` 上验证。插件接口还在调整，升级 DSH 后可能需要跟着改。
 
-This version was written entirely by AI (DeepSeek). Human review is planned. Please use it as an experimental version.
+当前版本完全由 AI（DeepSeek）编写，后续会做人工审查。请按实验版本使用。
 
-中文说明：[docs/README.zh-CN.md](docs/README.zh-CN.md)
 
-## Background
+## 背景
 
-With typical "AI drawing", you either get a static image, or one shared canvas where later drawings cover earlier ones. That gets awkward when teaching math: draw the second case and the first is gone; as the context grows, the model also starts losing track of which objects it created.
+一般的"AI 画图"，要么生成一张静态图片，要么只有一块共享画布，后画的图会把前面的盖掉。讲数学题时很别扭：画第二种情况，第一种就会被覆盖。
 
-This plugin stores each drawing as a separate board:
+所以我做了这个面向我个人需求的插件。
 
-- `create` always makes a new board; old boards stay as they are;
-- to continue, seed a new board from the old board's XML instead of editing the old one;
-- the host stores the XML, `.ggb` and object list; the Agent reads the list from a tool every time instead of relying on memory;
-- if a command is wrong, `amend` resends it in the same turn, leaving no failed board behind.
+这个插件把每次作图单独存成一张板，这意味着：
 
-## Quick start
+- Agent 输出的内容可以像练习册参考答案那样排版：先配图，再文字讲解；
+- 图可以直接交互：便于讲解动态几何等，3D 模式下可自由调整视角。
 
-After installing the package into your DSH environment, register it in the profile patch:
+工作流程：
+
+- `create` 总是新建一张板，旧板保持原样；
+- 想接着画，就用旧板的 XML 作为底稿生成新板，而不是改旧板；
+- 宿主保存 XML、`.ggb` 和对象清单；Agent 每次都从工具读清单，不靠记忆；
+- 命令写错了，用 `amend` 在同一回合补发，不会留下失败的板。
+
+## 快速开始
+
+把包装进 DSH 环境后，在 profile 的 patch 里注册：
 
 ```yaml
 - insert:
@@ -33,7 +39,7 @@ After installing the package into your DSH environment, register it in the profi
       name: 'dsh-geogebra-chat'
 ```
 
-For source development, point directly at `src/index.ts` (absolute path):
+从源码开发时，直接指向 `src/index.ts`（绝对路径）：
 
 ```yaml
 - insert:
@@ -41,107 +47,107 @@ For source development, point directly at `src/index.ts` (absolute path):
       name: '<path-to-plugin>/src/index.ts'
 ```
 
-Start:
+启动：
 
 ```bash
 dsh --profile <name> --patch <path-to-patch>.yml web --port 3099 --no-open
 ```
 
-No GeoGebra configuration needed; it loads from the CDN by default.
+不需要配置 GeoGebra，默认从 CDN 加载。
 
-## Usage
+## 使用
 
-Talk to the Agent in plain words:
+直接对 Agent 说人话：
 
-> Draw a square with side length 2, then draw its circumscribed circle.
+> 画一个边长 2 的正方形，再画它的外接圆。
 
-The Agent calls `geogebra_create`, and a card appears in the conversation. On the card:
+Agent 调用 `geogebra_create`，对话里出现一张卡片。卡片上可以：
 
-| Action | Description |
+| 操作 | 说明 |
 |---|---|
-| Fold / expand | Fold state is remembered by session and board id |
-| Drag the bottom edge | Resize the board |
-| Show algebra | Open GeoGebra's left algebra pane |
-| Restore | Return to the Agent's version; one more undo returns your edits |
-| Delete | Requires confirmation; leaves a "deleted" note |
-| Wheel | Hover to zoom |
+| 折叠 / 展开 | 折叠或展开卡片 |
+| 拖底边 | 调整画板高度 |
+| 显示代数区 | 打开 GeoGebra 左侧代数栏 |
+| 还原 | 回到 Agent 生成的版本 |
+| 删除 | 删掉不需要的画板 |
 
-Continue:
 
-> Draw a diagonal inside this square.
+继续画：
 
-The Agent first calls `geogebra_check`, then creates a new board from the old one.
+> 在这个正方形里画一条对角线。
 
-## Tools
+Agent 会先调 `geogebra_check`，再基于旧板新建一张板。
 
-| Tool | Purpose |
+## 工具
+
+| 工具 | 作用 |
 |---|---|
-| `geogebra_create` | Create a board (name and `appName` required; optional `from` an old board) |
-| `geogebra_amend` | Resend or fix commands in the same turn, keeping existing objects |
-| `geogebra_commit` | Freeze a draft early |
-| `geogebra_check` | What the user changed, plus the current sheet |
-| `geogebra_inspect` | Definition or value of one object |
-| `geogebra_rename` | Rename a board (id stays the same) |
-| `geogebra_list` | List boards in this session |
-| `geogebra_export` | Export `.ggb` (current or Agent-original version) |
-| `geogebra_modes` | List app modes and their capabilities; use when unsure about `appName` |
-| `geogebra_delete` | Delete a board (only when the user asks) |
+| `geogebra_create` | 新建板（必须起名和 `appName`，可 `from` 旧板） |
+| `geogebra_amend` | 本轮内补发或修正命令，已有对象保留 |
+| `geogebra_commit` | 提前冻结草稿 |
+| `geogebra_check` | 用户改了什么，以及当前清单 |
+| `geogebra_inspect` | 某个对象的定义或数值 |
+| `geogebra_rename` | 改名（编号不变） |
+| `geogebra_list` | 列出本会话的板 |
+| `geogebra_export` | 导出 `.ggb`（当前版或 Agent 原版） |
+| `geogebra_modes` | 查看各 app 模式的能力，不确定 `appName` 时用 |
+| `geogebra_delete` | 删除板（只在用户要求时） |
 
-Tools return GeoGebra's own object list (labels, types, definitions, text), not XML or images, to keep context usage down.
+工具返回的是 GeoGebra 自己的对象清单（标签、类型、定义、文本），不返回 XML 或图片，避免占满上下文。
 
-Modes: `suite`, `classic`, `graphing`, `geometry`, `3d`, `scientific` and others. Every `create` must pass an explicit `appName`: use `3d` for 3D, `graphing` for pure functions, `geometry` or `suite` for constructions. When unsure, the Agent calls `geogebra_modes` first. 3D cards render in the 3D view.
+模式：`suite`、`classic`、`graphing`、`geometry`、`3d`、`scientific` 等。每次 `create` 都必须显式指定 `appName`，3D 用 `3d`，纯函数用 `graphing`，几何用 `geometry` 或 `suite`；不确定时 Agent 会先调 `geogebra_modes`。3D 卡片显示在 3D 视图里。
 
-## How it works
+## 工作原理
 
 ```
-Agent ── geogebra_create ──▶ Host board store (XML / .ggb / object list)
-                                    │
-                                    ▼
-                       Conversation node: one board card
-                                    │
-                            GeoGebra inside an iframe
+Agent ── geogebra_create ──▶ 宿主板仓库（XML / .ggb / 对象清单）
+                                   │
+                                   ▼
+                        对话节点：一张 board 卡片
+                                   │
+                            iframe 里的 GeoGebra
 ```
 
-- Board records are JSON, stored under `<DSH_HOME>/geogebra/boards/<session>/`;
-- The card is only a renderer; unmounting it, refreshing the page, or restarting DSH will not lose boards;
-- A board goes `creating` → `draft` (editable this turn) → `final` (frozen);
-- Board ids only increase and are not reused after deletion, so a new board will not collide with an old card's node.
+- 板记录是 JSON，存在 `<DSH_HOME>/geogebra/boards/<session>/`；
+- 卡片只是渲染器，卸载卡片、刷新页面、重启 DSH 都不会丢板；
+- 一张板会经历 `creating` → `draft`（本轮可改）→ `final`（冻结）；
+- 板号只增不减，删除后也不复用，避免新板撞到旧卡片的节点。
 
-## Limitations
+## 限制
 
-- GeoGebra loads from `geogebra.org`; offline or intranet use needs a local package, and that option is not implemented yet.
-- Only `.ggb` export is available for now. PNG, SVG, PDF need the board visible; planned.
-- Data under `<DSH_HOME>/geogebra/boards/` is not deleted automatically when the plugin is uninstalled.
+- GeoGebra 从 `geogebra.org` 加载；离线或内网需要自备本地包，这个配置项还没做。
+- 目前只能导出 `.ggb`。PNG、SVG、PDF 需要画板可见，计划中。
+- `<DSH_HOME>/geogebra/boards/` 下的数据不会随插件卸载自动删除。
 
-## Development
+## 开发
 
 ```bash
 pnpm install
 pnpm build        # lib/index.js + lib/client.js
-pnpm watch        # incremental build while developing
+pnpm watch        # 开发时增量构建
 ```
 
-| Path | Content |
+| 路径 | 内容 |
 |---|---|
-| `src/index.ts` | Host half: tools, system prompt, HTTP routes |
-| `src/boards.ts` | Board store: create, amend, freeze, receipt, persistence |
-| `src/command-lint.ts` | Command-name check and white-object guard |
-| `src/client/index.tsx` | Browser half: iframe, card, conversation node |
-| `src/command-names.json` | Command names generated from the official manual |
-| `scripts/` | Build and development probes |
+| `src/index.ts` | 宿主半：工具、系统提示词、HTTP 路由 |
+| `src/boards.ts` | 板仓库：创建、修正、冻结、回执、持久化 |
+| `src/command-lint.ts` | 指令名检查和白色对象拦截 |
+| `src/client/index.tsx` | 浏览器半：iframe、卡片、对话节点 |
+| `src/command-names.json` | 从官方手册生成的指令名 |
+| `scripts/` | 构建和开发探针 |
 
 ## Roadmap
 
-- [ ] PNG / SVG / PDF export
-- [ ] Offline GeoGebra package
-- [ ] Sidebar "continue drawing"
-- [ ] Limit available commands per app
-- [ ] More automated tests
+- [ ] PNG / SVG / PDF 导出
+- [ ] 离线 GeoGebra 包
+- [ ] 侧栏"继续画"
+- [ ] 按 app 限制可用指令
+- [ ] 更多自动化测试
 
-## License
+## 许可
 
-Plugin code is MIT; see [LICENSE](LICENSE).
+插件以 MIT 开源，见 [LICENSE](../LICENSE)。
 
-GeoGebra is licensed by the International GeoGebra Institute under the [GeoGebra License](https://www.geogebra.org/license). This repository does not contain GeoGebra; it loads it from the official CDN by default. See [NOTICE](NOTICE) for the third-party notice.
+GeoGebra 由 International GeoGebra Institute 按 [GeoGebra License](https://www.geogebra.org/license) 授权。本仓库不包含 GeoGebra，默认从官方 CDN 加载。第三方声明见 [NOTICE](../NOTICE)。
 
-Development is AI-assisted; commits carry `AI-Generated: true`.
+开发由 AI 辅助，提交信息带 `AI-Generated: true`。
