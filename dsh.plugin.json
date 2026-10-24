@@ -2,7 +2,7 @@
   "id": "dsh-external/dsh-geogebra-chat",
   "version": "0.1.1",
   "main": "./lib/index.js",
-  "description": "Immutable, interactive GeoGebra snapshot boards inside DeepSeek Harness conversations.",
+  "description": "在 dsh 对话里画 GeoGebra。每次作图生成一张独立的快照板，适合用于 AI 教学。",
   "engines": {
     "dsh": ">=0.2.1-rc.2"
   },

@@ -31,7 +31,14 @@ const PROMPT_TEXT = `## GeoGebra 画板
 
 用 geogebra_create 作图，必须起一个短名字（4–12 字，会话内唯一）。
 
-**用户要什么就画什么。** 一条命令能完成就别拆成多条；不要自行添加滑块、辅助点、标注、交点、缩放或视图调整，除非用户明确要求。**不要改颜色、线宽、点大小**；尤其不要把任何对象设成白色或浅色——白底上会完全看不见。默认样式就很好。
+**用户要什么就画什么。** 一条命令能完成就别拆成多条；不要自行添加滑块、辅助点、标注、交点、缩放或视图调整，除非题目本来就需要动点（这时用参数或依赖对象）。**不要改颜色、线宽、点大小**；尤其不要把任何对象设成白色或浅色——白底上会完全看不见。默认样式就很好。
+
+**构造要能拖动。** 题目说"点 P 在抛物线/圆/线段上"时，P 必须依赖那个对象，不能写成固定坐标：
+- 点在曲线上：用 P=Point(f)；需要控制位置时用 t=Slider(0,5,0.1) 加 P=(t,f(t))，不要写死再手动挪；
+- 交点用 Intersect，中点用 Midpoint，垂足用 ClosestPoint 或 PerpendicularLine；
+- 只有题目允许自由点时才写 A=(1,2)。
+
+提交前自检：拖动每个动点，它是否仍满足题设；不满足就改成依赖构造，别等用户来问。
 
 旧板不可修改：想接着画，先 geogebra_check 看用户改了什么，再用 geogebra_create 的 from 基于它生成新板。命令失败时用 geogebra_amend 在同一个回合修正（只需重发失败的那几条，已有对象会保留；发完整列表也可以）；回合结束后板会冻结。
 
@@ -187,6 +194,18 @@ export function apply(ctx: {
     return lines
   }
 
+  /** Warn when a likely moving point is free instead of constrained to a curve. */
+  const freePointHint = (sheet: BoardRecord['sheet']): string => {
+    if (sheet === undefined || sheet.length === 0) return ''
+    const hasCurve = sheet.some(entry => entry.type === 'function' || entry.type === 'conic' || entry.type === 'line')
+    if (!hasCurve) return ''
+    const suspects = sheet.filter(entry =>
+      entry.type === 'point' && entry.x !== undefined && /^(P|Q|M|N|R|S|T)$/.test(entry.label))
+    if (suspects.length === 0) return ''
+    return `注意：${suspects.map(entry => entry.label).join('、')} 是自由点，拖动会脱离曲线。`
+      + '若题目要求它在某条曲线/线上，请改成 Point(f) 或 t=Slider(...)+P=(t,f(t))，用 geogebra_amend 修正。'
+  }
+
   /** Reject likely command-name typos before a board is created or amended. */
   const lintOrThrow = (commands: readonly string[]): void => {
     const white = findWhiteColors(commands)
@@ -289,6 +308,8 @@ export function apply(ctx: {
       parts.push(sheetText(ready.sheet))
       const added = diffText(from?.sheet, ready.sheet)
       if (added !== '') parts.push(`本次新增：${added}`)
+      const pointHint = freePointHint(ready.sheet)
+      if (pointHint !== '') parts.push(pointHint)
       if (ready.failed.length > 0) {
         parts.push(...failureLines(ready.failed))
         parts.push('（修正请用 geogebra_amend，不要为同样的内容再新建板。）')
@@ -329,6 +350,8 @@ export function apply(ctx: {
       if (ready === undefined) return `${record.boardId} 已重新提交（状态待回填）。`
       const parts = [`${record.boardId}「${record.name}」已重新生成：`, sheetText(ready.sheet)]
       if (ready.failed.length > 0) parts.push(...failureLines(ready.failed))
+      const pointHint = freePointHint(ready.sheet)
+      if (pointHint !== '') parts.push(pointHint)
       return parts.join('\n')
     },
   }), 'dsh-geogebra-chat: amend')
